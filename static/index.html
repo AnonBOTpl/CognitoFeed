@@ -96,9 +96,9 @@
         .trend-art a:hover { color: #7c6af7; }
         .trend-art:last-child { border-bottom: none; }
         .trend-liczba { display: inline-block; background: #2a2d3e; color: #7c6af7; font-size: 11px; padding: 2px 7px; border-radius: 10px; margin-left: 7px; }
-        .reader-modal { background: #1a1d2e; border-radius: 16px; width: 750px; max-height: 85vh; overflow-y: auto; padding: 35px; border: 1px solid #2a2d3e; }
-        .reader-tytul { font-size: 22px; font-weight: 700; margin-bottom: 20px; line-height: 1.4; }
-        .reader-tresc { font-size: 15px; line-height: 1.8; color: #bbb; white-space: pre-wrap; }
+
+
+
 
         /* CZAT */
         .chat-btn { position: fixed; bottom: 28px; right: 28px; background: #7c6af7; color: white; border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 20px; cursor: pointer; box-shadow: 0 4px 20px rgba(124,106,247,0.4); z-index: 100; transition: transform 0.2s; }
@@ -116,6 +116,36 @@
         .chat-input input:focus { border-color: #7c6af7; }
         .chat-input button { background: #7c6af7; color: white; border: none; padding: 7px 13px; border-radius: 8px; cursor: pointer; font-size: 15px; }
 
+
+        /* WYSZUKIWARKA */
+        .szukaj-wrap { position: relative; }
+        .szukaj-input { background: #12141f; border: 1px solid #2a2d3e; color: #e0e0e0; padding: 7px 35px 7px 12px; border-radius: 8px; font-size: 13px; outline: none; width: 220px; transition: border-color 0.2s; }
+        .szukaj-input:focus { border-color: #7c6af7; }
+        .szukaj-clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #555; cursor: pointer; font-size: 14px; display: none; }
+        .szukaj-clear.show { display: block; }
+
+        /* WYKRYWANIE RSS */
+        .wykryj-wrap { background: #1a1d2e; border-radius: 12px; padding: 14px; margin-bottom: 16px; border: 1px solid #2a2d3e; }
+        .wykryj-wrap input { width: 100%; background: #0f1117; border: 1px solid #2a2d3e; color: #e0e0e0; padding: 7px 11px; border-radius: 8px; font-size: 13px; margin-bottom: 7px; outline: none; }
+        .wykryj-wrap input:focus { border-color: #7c6af7; }
+        .wykryj-wyniki { margin-top: 8px; display: none; }
+        .wykryj-wyniki.show { display: block; }
+        .wykryj-item { display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: #12141f; margin-bottom: 5px; gap: 6px; }
+        .wykryj-item-nazwa { font-size: 12px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wykryj-item-url { font-size: 10px; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .btn-dodaj-rss { background: #7c6af7; border: none; color: white; font-size: 11px; padding: 5px; border-radius: 6px; cursor: pointer; width: 100%; }
+        .btn-dodaj-rss:hover { opacity: 0.85; }
+        .btn-dodaj-rss:disabled { opacity: 0.4; cursor: default; }
+        .wykryj-status { font-size: 11px; color: #666; margin-top: 4px; min-height: 16px; }
+
+        /* PASEK POSTĘPU */
+        .progress-wrap { margin-top: 10px; display: none; }
+        .progress-wrap.show { display: block; }
+        .progress-bar-bg { background: #0f1117; border-radius: 8px; height: 6px; overflow: hidden; margin-bottom: 6px; }
+        .progress-bar { height: 6px; background: #7c6af7; border-radius: 8px; width: 0%; transition: width 0.4s ease; }
+        .progress-bar.done { background: #4caf82; }
+        .progress-bar.error { background: #cf6679; }
+        .progress-tekst { font-size: 11px; color: #666; min-height: 16px; }
 
         /* KATEGORIE */
         .kategorie-sekcja { margin-top: 20px; }
@@ -138,6 +168,10 @@
             <p>Inteligentny asystent wiedzy</p>
         </div>
         <div class="header-akcje">
+            <div class="szukaj-wrap">
+                <input class="szukaj-input" id="szukaj-input" type="text" placeholder="🔍 Szukaj..." oninput="szukaj(this.value)" />
+                <button class="szukaj-clear" id="szukaj-clear" onclick="wyczysc()">✕</button>
+            </div>
             <div class="auto-toggle" id="auto-toggle" onclick="przełączAuto()">
                 <div class="toggle-switch"></div>
                 <span class="auto-label">Auto</span>
@@ -157,8 +191,20 @@
             <div class="dodaj-kanal">
                 <input type="text" id="input-url" placeholder="https://example.com/rss.xml" />
                 <button class="btn btn-primary" style="width:100%" onclick="dodajKanal()">+ Dodaj kanał</button>
+                <div class="progress-wrap" id="progress-wrap">
+                    <div class="progress-bar-bg"><div class="progress-bar" id="progress-bar"></div></div>
+                    <div class="progress-tekst" id="progress-tekst"></div>
+                </div>
             </div>
             <div id="lista-kanalow"></div>
+
+            <div class="wykryj-wrap">
+                <h2 style="font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Znajdź RSS</h2>
+                <input type="text" id="wykryj-input" placeholder="np. onet.pl, wp.pl..." onkeydown="if(event.key==='Enter') wykryjRSS()" />
+                <button class="btn btn-primary" style="width:100%" onclick="wykryjRSS()">🔍 Szukaj kanałów</button>
+                <div class="wykryj-status" id="wykryj-status"></div>
+                <div class="wykryj-wyniki" id="wykryj-wyniki"></div>
+            </div>
             <div class="kategorie-sekcja">
                 <h2>Kategorie</h2>
                 <div id="lista-kategorii"></div>
@@ -190,17 +236,7 @@
         </div>
     </div>
 
-    <!-- READER VIEW -->
-    <div class="modal-overlay" id="modal-reader" onclick="if(event.target===this) zamknijModal('modal-reader')">
-        <div class="reader-modal">
-            <div class="modal-header">
-                <h2>📖 Tryb czytania</h2>
-                <button class="chat-zamknij" onclick="zamknijModal('modal-reader')">✕</button>
-            </div>
-            <div class="reader-tytul" id="reader-tytul"></div>
-            <div class="reader-tresc" id="reader-tresc"></div>
-        </div>
-    </div>
+
 
     <div class="toast" id="toast"></div>
 
@@ -263,7 +299,7 @@
                     ${art.podsumowanie_krotkie ? `<div class="podsumowanie">💬 ${art.podsumowanie_krotkie}</div>` : ''}
                     <div class="artykul-akcje">
                         ${art.sentyment ? `<span class="sentyment ${getSentymentKlasa(art.sentyment)}">${art.sentyment.split('.')[0]}</span>` : ''}
-                        <button class="btn-reader" onclick="pokazReader('${encodeURIComponent(art.link)}')">📖 Czytaj</button>
+                        <a class="btn-reader" href="${art.link}" target="_blank">📖 Czytaj</a>
                         <span class="badge-kat" onclick="pokazZmianaKategorii(${art.id}, this)">${art.kategoria || 'INNE'}</span>
                     </div>
                 </div>
@@ -365,32 +401,95 @@
             if (aktywnaZakladka === 'ulubione') ladujArtykuly();
         }
 
-        async function pokazReader(encodedUrl) {
-            document.getElementById('reader-tytul').textContent = 'Ładowanie...';
-            document.getElementById('reader-tresc').textContent = '';
-            document.getElementById('modal-reader').classList.add('otwarte');
-            const res = await fetch(`/api/reader?url=${encodedUrl}`);
+
+
+
+        async function wykryjRSS() {
+            const input = document.getElementById('wykryj-input');
+            const status = document.getElementById('wykryj-status');
+            const wyniki = document.getElementById('wykryj-wyniki');
+            const url = input.value.trim();
+            if (!url) return;
+
+            status.textContent = '⏳ Szukam kanałów RSS...';
+            wyniki.classList.remove('show');
+            wyniki.innerHTML = '';
+
+            const res = await fetch(`/api/wykryj-rss?url=${encodeURIComponent(url)}`);
             const dane = await res.json();
-            document.getElementById('reader-tytul').textContent = dane.tytul || 'Artykuł';
-            document.getElementById('reader-tresc').textContent = dane.tresc;
+
+            if (!dane.znalezione.length) {
+                status.textContent = '❌ Nie znaleziono kanałów RSS na tej stronie';
+                return;
+            }
+
+            status.textContent = `✅ Znaleziono ${dane.znalezione.length} kanał(ów):`;
+            wyniki.innerHTML = dane.znalezione.map((k, i) => `
+                <div class="wykryj-item">
+                    <div>
+                        <div class="wykryj-item-nazwa">${k.tytul}</div>
+                        <div class="wykryj-item-url">${k.url}</div>
+                    </div>
+                    <button class="btn-dodaj-rss" id="btn-wykryj-${i}" onclick="dodajWykryty('${encodeURIComponent(k.url)}', ${i})">+ Dodaj</button>
+                </div>
+            `).join('');
+            wyniki.classList.add('show');
+        }
+
+        async function dodajWykryty(encodedUrl, idx) {
+            const btn = document.getElementById(`btn-wykryj-${idx}`);
+            btn.textContent = '⏳';
+            btn.disabled = true;
+            // wstaw URL do głównego pola i uruchom dodawanie z paskiem postępu
+            document.getElementById('input-url').value = decodeURIComponent(encodedUrl);
+            await dodajKanal();
+            btn.textContent = '✅';
         }
 
         async function dodajKanal() {
             const url = document.getElementById('input-url').value.trim();
             if (!url) return;
-            pokazToast('⏳ Dodaję kanał...');
-            const res = await fetch('/api/kanaly/dodaj', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
-            });
-            const dane = await res.json();
-            pokazToast(dane.sukces ? '✅ ' + dane.komunikat : '❌ ' + dane.komunikat, dane.sukces ? '#4caf82' : '#cf6679');
-            if (dane.sukces) {
-                document.getElementById('input-url').value = '';
-                ladujArtykuly();
-                ladujKanaly();
-            }
+
+            const wrap = document.getElementById('progress-wrap');
+            const bar = document.getElementById('progress-bar');
+            const tekst = document.getElementById('progress-tekst');
+            const btn = document.querySelector('.dodaj-kanal .btn-primary');
+
+            wrap.classList.add('show');
+            bar.className = 'progress-bar';
+            bar.style.width = '0%';
+            tekst.textContent = 'Łączę...';
+            btn.disabled = true;
+
+            const evtSource = new EventSource(`/api/kanaly/dodaj/progress?url=${encodeURIComponent(url)}`);
+
+            evtSource.onmessage = (e) => {
+                const dane = JSON.parse(e.data);
+                bar.style.width = dane.proc + '%';
+                tekst.textContent = dane.tekst;
+
+                if (dane.status === 'done') {
+                    bar.classList.add('done');
+                    evtSource.close();
+                    btn.disabled = false;
+                    document.getElementById('input-url').value = '';
+                    setTimeout(() => wrap.classList.remove('show'), 3000);
+                    ladujArtykuly();
+                    ladujKanaly();
+                    ladujKategorie();
+                } else if (dane.status === 'error') {
+                    bar.classList.add('error');
+                    evtSource.close();
+                    btn.disabled = false;
+                }
+            };
+
+            evtSource.onerror = () => {
+                tekst.textContent = '❌ Błąd połączenia';
+                bar.classList.add('error');
+                evtSource.close();
+                btn.disabled = false;
+            };
         }
 
         async function usunKanal(id) {
@@ -464,6 +563,67 @@
                 clearInterval(minutnik);
                 document.getElementById('nastepne-odswiez').textContent = '-';
             }
+        }
+
+        async function ladujKategorie() {
+            const res = await fetch('/api/kategorie');
+            const kategorie = await res.json();
+            const lista = document.getElementById('lista-kategorii');
+            const wsz = aktywnaKategoria === null ? 'aktywna' : '';
+            lista.innerHTML = `<div class="kat-item ${wsz}" onclick="filtrujKategorie(null, this)">📋 Wszystkie</div>`
+                + kategorie.map(k => `<div class="kat-item ${aktywnaKategoria === k ? 'aktywna' : ''}" onclick="filtrujKategorie('${k}', this)">${k}</div>`).join('');
+        }
+
+        function filtrujKategorie(kat, el) {
+            aktywnaKategoria = kat;
+            ladujKategorie();
+            ladujArtykuly();
+        }
+
+        async function pokazZmianaKategorii(id, el) {
+            const KATEGORIE = ['POLITYKA','SPORT','TECHNOLOGIA','NAUKA','GOSPODARKA','SWIAT','ROZRYWKA','ZDROWIE','INNE'];
+            const select = document.createElement('select');
+            select.className = 'kat-select';
+            KATEGORIE.forEach(k => {
+                const opt = document.createElement('option');
+                opt.value = k; opt.textContent = k;
+                if (el.textContent.trim() === k) opt.selected = true;
+                select.appendChild(opt);
+            });
+            el.replaceWith(select);
+            select.focus();
+            select.addEventListener('change', async () => {
+                await fetch(`/api/artykuly/${id}/kategoria`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({kategoria: select.value})
+                });
+                el.textContent = select.value;
+                if (select.parentNode) select.replaceWith(el);
+                ladujKategorie();
+            });
+            select.addEventListener('blur', () => { if (select.parentNode) select.replaceWith(el); });
+        }
+
+        let szukajTimeout = null;
+
+        function szukaj(q) {
+            const clear = document.getElementById("szukaj-clear");
+            clear.classList.toggle("show", q.length > 0);
+            clearTimeout(szukajTimeout);
+            if (q.length < 2) { ladujArtykuly(); return; }
+            szukajTimeout = setTimeout(async () => {
+                const res = await fetch(`/api/szukaj?q=${encodeURIComponent(q)}`);
+                const wyniki = await res.json();
+                document.getElementById("liczba-artykulow").textContent = wyniki.length;
+                renderujArtykuly(wyniki);
+            }, 300);
+        }
+
+        function wyczysc() {
+            document.getElementById("szukaj-input").value = "";
+            document.getElementById("szukaj-clear").classList.remove("show");
+            ladujArtykuly();
         }
 
         function toggleChat() {

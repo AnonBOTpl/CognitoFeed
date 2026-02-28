@@ -68,6 +68,8 @@ def get_artykuly(limit: int = 50):
             "podsumowanie_krotkie": art.podsumowanie_krotkie,
             "podsumowanie_srednie": art.podsumowanie_srednie,
             "sentyment": art.sentyment,
+            "ulubiony": art.ulubiony,
+            "kategoria": art.kategoria or "INNE",
         })
     return wynik
 
@@ -87,6 +89,8 @@ def get_artykuly_kanalu(url: str, limit: int = 50):
             "podsumowanie_krotkie": art.podsumowanie_krotkie,
             "podsumowanie_srednie": art.podsumowanie_srednie,
             "sentyment": art.sentyment,
+            "ulubiony": art.ulubiony,
+            "kategoria": art.kategoria or "INNE",
         })
     return wynik
 
@@ -111,24 +115,47 @@ def set_interwal(dane: dict):
 class KanalURL(BaseModel):
     url: str
 
-@app.post("/api/kanaly/dodaj")
-async def dodaj_kanal(dane: KanalURL):
+@app.get("/api/kanaly/dodaj/progress")
+async def dodaj_kanal_progress(url: str):
     from rss_parser import fetch_feed
-    from ai_summarizer import podsumuj_artykul
+    from ai_summarizer import podsumuj_artykul, przypisz_kategorie
+    from fastapi.responses import StreamingResponse
+    import json
 
-    wynik = await fetch_feed(dane.url)
-    if not wynik:
-        return {"sukces": False, "komunikat": "Nie udało się pobrać kanału – sprawdź URL"}
+    async def stream():
+        def msg(dane: dict):
+            return f"data: {json.dumps(dane, ensure_ascii=False)}\n\n"
 
-    nowe = zapisz_kanal(wynik)
-    for art in nowe:
-        podsumowania = podsumuj_artykul(art["tytul"], art["opis"] or "")
-        zapisz_podsumowanie(art["link"], podsumowania)
+        yield msg({"status": "fetch", "tekst": "Pobieram kanał...", "proc": 5})
 
-    return {
-        "sukces": True,
-        "komunikat": f"Dodano kanał '{wynik['tytuł']}' z {len(nowe)} nowymi artykułami"
-    }
+        wynik = await fetch_feed(url)
+        if not wynik:
+            yield msg({"status": "error", "tekst": "Nie udało się pobrać kanału – sprawdź URL", "proc": 0})
+            return
+
+        yield msg({"status": "fetch", "tekst": f"Znaleziono: {wynik['tytuł']}", "proc": 15})
+
+        nowe = zapisz_kanal(wynik)
+        total = len(nowe)
+
+        if total == 0:
+            yield msg({"status": "done", "tekst": "Kanał już istnieje, brak nowych artykułów", "proc": 100})
+            return
+
+        yield msg({"status": "ai", "tekst": f"Przetwarzam {total} artykułów...", "proc": 20})
+
+        for i, art in enumerate(nowe):
+            proc = 20 + int((i / total) * 75)
+            yield msg({"status": "ai", "tekst": f"AI analizuje: {art['tytul'][:50]}...", "proc": proc})
+            podsumowania = podsumuj_artykul(art["tytul"], art["opis"] or "")
+            zapisz_podsumowanie(art["link"], podsumowania)
+            kategoria = przypisz_kategorie(art["tytul"], art["opis"] or "")
+            zapisz_kategorie(art["link"], kategoria)
+
+        yield msg({"status": "done", "tekst": f"✅ Dodano '{wynik['tytuł']}' – {total} artykułów", "proc": 100})
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 @app.post("/api/odswierz")
 async def odswiez():
@@ -179,7 +206,7 @@ def get_artykuly_kategorii(kategoria: str):
     artykuly = pobierz_artykuly_kategorii(kategoria)
     return [{"id": a.id, "tytul": a.tytul, "link": a.link, "kanal_url": a.kanal_url,
              "data_publikacji": a.data_publikacji, "podsumowanie_krotkie": a.podsumowanie_krotkie,
-             "sentyment": a.sentyment, "ulubiony": a.ulubiony, "kategoria": a.kategoria} for a in artykuly]
+             "sentyment": a.sentyment, "ulubiony": a.ulubiony, "kategoria": a.kategoria or "INNE"} for a in artykuly]
 
 @app.post("/api/artykuly/{artykul_id}/kategoria")
 def zmien_kategorie(artykul_id: int, dane: dict):
@@ -210,31 +237,82 @@ def get_ulubione():
         "ulubiony": a.ulubiony,
     } for a in artykuly]
 
-@app.get("/api/reader")
-async def reader_view(url: str):
+
+@app.get("/api/wykryj-rss")
+async def wykryj_rss(url: str):
     import aiohttp
     from bs4 import BeautifulSoup
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                html = await resp.text()
-        soup = BeautifulSoup(html, "html.parser")
-        # usuń zbędne elementy
-        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "iframe", "form"]):
-            tag.decompose()
-        # znajdź główną treść
-        tresc = ""
-        for selektor in ["article", "main", ".post-content", ".article-body", ".entry-content"]:
-            el = soup.select_one(selektor)
-            if el:
-                tresc = el.get_text(separator="\n", strip=True)
-                break
-        if not tresc:
-            tresc = soup.get_text(separator="\n", strip=True)[:3000]
-        tytul = soup.title.string if soup.title else ""
-        return {"tytul": tytul, "tresc": tresc[:5000]}
-    except Exception as e:
-        return {"tytul": "", "tresc": f"Nie udało się pobrać treści: {e}"}
+
+    # normalizuj URL
+    if not url.startswith("http"):
+        url = "https://" + url
+    # usuń trailing slash
+    url = url.rstrip("/")
+
+    znalezione = []
+    sprawdzone = set()
+
+    async def szukaj_w_stronie(adres: str):
+        if adres in sprawdzone:
+            return
+        sprawdzone.add(adres)
+        try:
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+            async with aiohttp.ClientSession() as session:
+                async with session.get(adres, headers=headers, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                    if resp.status != 200:
+                        return
+                    html = await resp.text()
+            soup = BeautifulSoup(html, "html.parser")
+
+            # szukaj tagów link z RSS/Atom
+            for tag in soup.find_all("link", type=["application/rss+xml", "application/atom+xml"]):
+                href = tag.get("href", "")
+                if not href:
+                    continue
+                if href.startswith("/"):
+                    href = url + href
+                elif not href.startswith("http"):
+                    href = url + "/" + href
+                tytul = tag.get("title", href)
+                if href not in [r["url"] for r in znalezione]:
+                    znalezione.append({"tytul": tytul, "url": href})
+
+            # szukaj też linków a href które zawierają rss/feed/atom
+            if len(znalezione) == 0:
+                for tag in soup.find_all("a", href=True):
+                    href = tag["href"]
+                    if any(x in href.lower() for x in ["rss", "feed", "atom", "xml"]):
+                        if href.startswith("/"):
+                            href = url + href
+                        elif not href.startswith("http"):
+                            href = url + "/" + href
+                        tytul = tag.get_text(strip=True) or href
+                        if href not in [r["url"] for r in znalezione]:
+                            znalezione.append({"tytul": tytul, "url": href})
+        except Exception:
+            pass
+
+    # sprawdź główną stronę
+    await szukaj_w_stronie(url)
+
+    # jeśli nic nie znaleziono – sprawdź popularne ścieżki
+    if not znalezione:
+        popularne = ["/feed", "/rss", "/feed.xml", "/rss.xml", "/atom.xml",
+                     "/feeds/posts/default", "/feed/rss", "/rss/all.xml"]
+        for sciezka in popularne:
+            try:
+                headers = {"User-Agent": "Mozilla/5.0"}
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url + sciezka, headers=headers,
+                                           timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                        ct = resp.headers.get("content-type", "")
+                        if resp.status == 200 and any(x in ct for x in ["xml", "rss", "atom"]):
+                            znalezione.append({"tytul": sciezka, "url": url + sciezka})
+            except Exception:
+                pass
+
+    return {"znalezione": znalezione, "bazowy_url": url}
 
 # licznik nowych artykułów od ostatniego sprawdzenia
 ostatnie_sprawdzenie = {"liczba": 0}
@@ -278,3 +356,27 @@ Odpowiedz po polsku, konkretnie i zwięźle. Jeśli pytanie dotyczy konkretnego 
         contents=prompt
     )
     return {"odpowiedz": odpowiedz.text}
+
+
+@app.get("/api/szukaj")
+def szukaj(q: str, limit: int = 30):
+    if not q or len(q) < 2:
+        return []
+    session = Session()
+    wyniki = session.query(Artykul).filter(
+        Artykul.tytul.ilike(f"%{q}%") |
+        Artykul.opis.ilike(f"%{q}%") |
+        Artykul.podsumowanie_krotkie.ilike(f"%{q}%")
+    ).order_by(Artykul.dodano.desc()).limit(limit).all()
+    session.close()
+    return [{
+        "id": a.id,
+        "tytul": a.tytul,
+        "link": a.link,
+        "kanal_url": a.kanal_url,
+        "data_publikacji": a.data_publikacji,
+        "podsumowanie_krotkie": a.podsumowanie_krotkie,
+        "sentyment": a.sentyment,
+        "ulubiony": a.ulubiony,
+        "kategoria": a.kategoria or "INNE",
+    } for a in wyniki]

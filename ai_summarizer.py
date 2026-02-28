@@ -41,21 +41,37 @@ SENTYMENT: ..."""
 
 KATEGORIE = ["POLITYKA", "SPORT", "TECHNOLOGIA", "NAUKA", "GOSPODARKA", "ŚWIAT", "ROZRYWKA", "ZDROWIE", "INNE"]
 
+# mapowanie angielskich/błędnych nazw na polskie
+KATEGORIE_ALIAS = {
+    "WORLD": "ŚWIAT", "POLITICS": "POLITYKA", "TECHNOLOGY": "TECHNOLOGIA",
+    "SCIENCE": "NAUKA", "HEALTH": "ZDROWIE", "ECONOMY": "GOSPODARKA",
+    "FINANCE": "GOSPODARKA", "BUSINESS": "GOSPODARKA", "ENTERTAINMENT": "ROZRYWKA",
+    "CULTURE": "ROZRYWKA", "OTHER": "INNE", "GENERAL": "INNE",
+}
+
 def przypisz_kategorie(tytul: str, tresc: str) -> str:
     """Przypisuje kategorię do artykułu"""
-    prompt = f"""Przypisz artykułowi dokładnie jedną kategorię z listy: {", ".join(KATEGORIE)}
+    prompt = f"""Przypisz artykułowi dokładnie jedną kategorię z tej listy: {", ".join(KATEGORIE)}
 
 Tytuł: {tytul}
 Treść: {tresc[:300]}
 
-Odpowiedz TYLKO nazwą kategorii, nic więcej."""
+Odpowiedz TYLKO jednym słowem – nazwą kategorii z podanej listy, po polsku, nic więcej."""
 
     odpowiedz = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt
     )
-    kat = odpowiedz.text.strip().upper()
-    return kat if kat in KATEGORIE else "INNE"
+    kat = odpowiedz.text.strip().upper().strip(".")
+    if kat in KATEGORIE:
+        return kat
+    if kat in KATEGORIE_ALIAS:
+        return KATEGORIE_ALIAS[kat]
+    # szukaj częściowego dopasowania
+    for k in KATEGORIE:
+        if k in kat or kat in k:
+            return k
+    return "INNE"
 
 if __name__ == "__main__":
     tytul = "UK planes in the sky in Middle East as part of defensive operation"
