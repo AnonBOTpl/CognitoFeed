@@ -26,6 +26,7 @@ class Artykul(Base):
     podsumowanie_srednie = Column(Text, nullable=True)
     sentyment = Column(String(200), nullable=True)
     ulubiony = Column(Boolean, default=False)
+    kategoria = Column(String(100), nullable=True, default="INNE")
 
 engine = create_engine("sqlite:///cognitofeed.db")
 Base.metadata.create_all(engine)
@@ -94,5 +95,25 @@ def przelacz_ulubiony(artykul_id: int) -> bool:
 def pobierz_ulubione() -> list:
     session = Session()
     artykuly = session.query(Artykul).filter_by(ulubiony=True).order_by(Artykul.dodano.desc()).all()
+    session.close()
+    return artykuly
+
+def zapisz_kategorie(link: str, kategoria: str):
+    session = Session()
+    artykul = session.query(Artykul).filter_by(link=link).first()
+    if artykul:
+        artykul.kategoria = kategoria
+        session.commit()
+    session.close()
+
+def pobierz_kategorie() -> list:
+    session = Session()
+    kategorie = session.query(Artykul.kategoria).distinct().all()
+    session.close()
+    return sorted([k[0] for k in kategorie if k[0]])
+
+def pobierz_artykuly_kategorii(kategoria: str, limit: int = 50) -> list:
+    session = Session()
+    artykuly = session.query(Artykul).filter_by(kategoria=kategoria).order_by(Artykul.dodano.desc()).limit(limit).all()
     session.close()
     return artykuly

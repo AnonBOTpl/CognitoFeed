@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from database import pobierz_artykuly, pobierz_ulubione, przelacz_ulubiony, Session, Kanal, Artykul, zapisz_kanal, zapisz_podsumowanie
+from database import pobierz_artykuly, pobierz_ulubione, przelacz_ulubiony, pobierz_kategorie, pobierz_artykuly_kategorii, zapisz_kategorie, Session, Kanal, Artykul, zapisz_kanal, zapisz_podsumowanie
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 import asyncio
@@ -169,6 +169,28 @@ def get_trendy():
     from trend_analyzer import wykryj_trendy
     return wykryj_trendy()
 
+
+@app.get("/api/kategorie")
+def get_kategorie():
+    return pobierz_kategorie()
+
+@app.get("/api/artykuly/kategoria")
+def get_artykuly_kategorii(kategoria: str):
+    artykuly = pobierz_artykuly_kategorii(kategoria)
+    return [{"id": a.id, "tytul": a.tytul, "link": a.link, "kanal_url": a.kanal_url,
+             "data_publikacji": a.data_publikacji, "podsumowanie_krotkie": a.podsumowanie_krotkie,
+             "sentyment": a.sentyment, "ulubiony": a.ulubiony, "kategoria": a.kategoria} for a in artykuly]
+
+@app.post("/api/artykuly/{artykul_id}/kategoria")
+def zmien_kategorie(artykul_id: int, dane: dict):
+    from database import Session, Artykul
+    session = Session()
+    art = session.query(Artykul).filter_by(id=artykul_id).first()
+    if art:
+        art.kategoria = dane.get("kategoria", "INNE")
+        session.commit()
+    session.close()
+    return {"sukces": True}
 @app.post("/api/artykuly/{artykul_id}/ulubiony")
 def toggle_ulubiony(artykul_id: int):
     stan = przelacz_ulubiony(artykul_id)

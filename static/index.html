@@ -116,6 +116,16 @@
         .chat-input input:focus { border-color: #7c6af7; }
         .chat-input button { background: #7c6af7; color: white; border: none; padding: 7px 13px; border-radius: 8px; cursor: pointer; font-size: 15px; }
 
+
+        /* KATEGORIE */
+        .kategorie-sekcja { margin-top: 20px; }
+        .kat-item { padding: 8px 12px; border-radius: 8px; margin-bottom: 5px; cursor: pointer; font-size: 13px; color: #888; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s; }
+        .kat-item:hover { background: #1a1d2e; color: #e0e0e0; }
+        .kat-item.aktywna { background: #1e1a3a; color: #7c6af7; font-weight: 600; }
+        .kat-count { font-size: 11px; background: #2a2d3e; padding: 2px 7px; border-radius: 10px; color: #666; }
+        .badge-kat { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #2a2d3e; color: #7c6af7; cursor: pointer; border: 1px solid #3a3d5e; transition: all 0.2s; }
+        .badge-kat:hover { background: #7c6af7; color: white; }
+        .kat-select { background: #0f1117; border: 1px solid #7c6af7; color: #e0e0e0; border-radius: 6px; padding: 2px 6px; font-size: 11px; cursor: pointer; outline: none; }
         /* TOAST */
         .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: #1a1d2e; border: 1px solid #7c6af7; padding: 11px 20px; border-radius: 10px; font-size: 14px; display: none; z-index: 999; white-space: nowrap; }
         .toast.show { display: block; }
@@ -149,6 +159,10 @@
                 <button class="btn btn-primary" style="width:100%" onclick="dodajKanal()">+ Dodaj kanał</button>
             </div>
             <div id="lista-kanalow"></div>
+            <div class="kategorie-sekcja">
+                <h2>Kategorie</h2>
+                <div id="lista-kategorii"></div>
+            </div>
         </div>
 
         <div class="main">
@@ -210,6 +224,7 @@
         let autoAktywne = false;
         let aktywnyKanal = null;
         let aktywnaZakladka = 'wszystkie';
+        let aktywnaKategoria = null;
         let minutnik = null;
         let minutyDoOdswiezenia = 30;
 
@@ -249,6 +264,7 @@
                     <div class="artykul-akcje">
                         ${art.sentyment ? `<span class="sentyment ${getSentymentKlasa(art.sentyment)}">${art.sentyment.split('.')[0]}</span>` : ''}
                         <button class="btn-reader" onclick="pokazReader('${encodeURIComponent(art.link)}')">📖 Czytaj</button>
+                        <span class="badge-kat" onclick="pokazZmianaKategorii(${art.id}, this)">${art.kategoria || 'INNE'}</span>
                     </div>
                 </div>
             `).join('');
@@ -260,13 +276,59 @@
                 renderujArtykuly(await res.json());
                 return;
             }
-            const url = aktywnyKanal
-                ? `/api/artykuly/kanal?url=${encodeURIComponent(aktywnyKanal)}&limit=50`
-                : '/api/artykuly?limit=50';
+            let url;
+            if (aktywnaKategoria) {
+                url = `/api/artykuly/kategoria?kategoria=${encodeURIComponent(aktywnaKategoria)}&limit=50`;
+            } else if (aktywnyKanal) {
+                url = `/api/artykuly/kanal?url=${encodeURIComponent(aktywnyKanal)}&limit=50`;
+            } else {
+                url = '/api/artykuly?limit=50';
+            }
             const res = await fetch(url);
             renderujArtykuly(await res.json());
         }
 
+        async function ladujKategorie() {
+            const res = await fetch("/api/kategorie");
+            const kategorie = await res.json();
+            const lista = document.getElementById("lista-kategorii");
+            const wsz = aktywnaKategoria === null ? "aktywna" : "";
+            lista.innerHTML = `<div class="kat-item ${wsz}" onclick="filtrujKategorie(null, this)">📋 Wszystkie</div>`
+                + kategorie.map(k => `
+                <div class="kat-item ${aktywnaKategoria === k ? 'aktywna' : ''}" onclick="filtrujKategorie('${k}', this)">${k}</div>
+            `).join("");
+        }
+
+        function filtrujKategorie(kat, el) {
+            aktywnaKategoria = kat;
+            ladujKategorie();
+            ladujArtykuly();
+        }
+
+        async function pokazZmianaKategorii(id, el) {
+            const KATEGORIE = ["POLITYKA","SPORT","TECHNOLOGIA","NAUKA","GOSPODARKA","SWIAT","ROZRYWKA","ZDROWIE","INNE"];
+            const select = document.createElement("select");
+            select.className = "kat-select";
+            KATEGORIE.forEach(k => {
+                const opt = document.createElement("option");
+                opt.value = k; opt.textContent = k;
+                if (el.textContent === k) opt.selected = true;
+                select.appendChild(opt);
+            });
+            el.replaceWith(select);
+            select.focus();
+            select.addEventListener("change", async () => {
+                await fetch(`/api/artykuly/${id}/kategoria`, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({kategoria: select.value})
+                });
+                el.textContent = select.value;
+                if (select.parentNode) select.replaceWith(el);
+                ladujKategorie();
+            });
+            select.addEventListener("blur", () => { if (select.parentNode) select.replaceWith(el); });
+        }
         async function ladujKanaly() {
             const res = await fetch('/api/kanaly');
             const kanaly = await res.json();
@@ -430,6 +492,7 @@
 
         ladujArtykuly();
         ladujKanaly();
+        ladujKategorie();
     </script>
 </body>
 </html>
