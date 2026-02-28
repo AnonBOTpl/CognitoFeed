@@ -1,51 +1,57 @@
 # 🧠 CognitoFeed
 
-Inteligentny czytnik RSS wspomagany przez AI (Google Gemini).
+> **🚧 Work in Progress**
+> 
+> `[█░░░░░░░░░]` 10% — Early development stage
 
-## Funkcje
-- 📰 Subskrypcja kanałów RSS/Atom
-- 💬 Automatyczne podsumowania AI (krótkie i średnie)
-- 🎭 Analiza sentymentu artykułów
-- 📌 Wykrywanie trendów tematycznych
-- ⭐ Ulubione artykuły
-- 📖 Tryb czytania (Reader View)
-- 🔔 Powiadomienia o nowych artykułach
-- 🔄 Auto-odświeżanie kanałów
-- 🤖 Czat AI z kontekstem artykułów
+---
 
-## Wymagania
+An intelligent RSS reader powered by AI (Google Gemini).
+
+## Features
+- 📰 RSS/Atom feed subscriptions
+- 💬 Automatic AI summaries (short & medium)
+- 🎭 Article sentiment analysis
+- 📌 Trend detection across articles
+- ⭐ Favourite articles
+- 📖 Reader View (distraction-free reading)
+- 🔔 New article notifications
+- 🔄 Auto-refresh feeds
+- 🤖 AI chat with article context
+
+## Requirements
 - Python 3.11+
-- Klucz API Google AI Studio (Gemini)
+- Google AI Studio API key (Gemini)
 
-## Instalacja
+## Installation
 
 ```bash
-git clone https://github.com/TWOJ_LOGIN/CognitoFeed.git
+git clone https://github.com/AnonBOTpl/CognitoFeed.git
 cd CognitoFeed
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Stwórz plik `.env`:
+Create a `.env` file:
 ```
-GEMINI_API_KEY=twoj_klucz_api
+GEMINI_API_KEY=your_api_key_here
 ```
 
-## Uruchomienie
+## Running
 
 ```bash
-# Pierwsze uruchomienie - pobierz artykuły
+# First run – fetch initial articles
 python main.py
 
-# Uruchom serwer
+# Start the server
 uvicorn api:app --reload
 ```
 
-Otwórz http://localhost:8000 w przeglądarce.
+Open http://localhost:8000 in your browser.
 
-## Stack
+## Tech Stack
 - **Backend:** Python + FastAPI
-- **Baza danych:** SQLite
+- **Database:** SQLite
 - **AI:** Google Gemini 2.5 Flash
 - **Frontend:** HTML/CSS/JS
